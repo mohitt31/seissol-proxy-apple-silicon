@@ -1,0 +1,49 @@
+From a187aed030503b97b7e849f91c7e1eb6e0df5f6b Mon Sep 17 00:00:00 2001
+From: mohitt31 <mohitprajapati3112@gmail.com>
+Date: Fri, 21 Aug 2026 06:24:18 +0530
+Subject: [PATCH] docs: correct the isotropic elastic energy formula
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Two things in the elastic energy entry did not match the code:
+
+- The prefactor of the isotropic form was 1/(2*mu), but the code computes
+  0.5 * sigma_ij * epsilon_ij with
+
+      epsilon_ij = 1/(2*mu) * sigma_ij
+                 - lambda/(2*mu*(3*lambda+2*mu)) * sigma_kk * delta_ij
+
+  which expands to 1/(4*mu) * (sigma_ij sigma_ij
+  - lambda/(3*lambda+2*mu) * sigma_kk^2). The factor 1/2 from the leading
+  0.5 (EnergyOutput.cpp) was missing in the docs.
+
+- The general form was written as epsilon_ij * sigma_kl, whose indices do
+  not contract; it should be epsilon_ij * sigma_ij.
+
+Also spell out that sigma_kk^2 is the squared trace, i.e.
+(sigma_11 + sigma_22 + sigma_33)^2, rather than a sum of squares — that
+distinction was what the discussion in the issue turned on.
+
+Refs #1556
+Contains AI-generated content. (model: Opus 5)
+---
+ docs/energy-output.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/docs/energy-output.rst b/docs/energy-output.rst
+index 184c5dac..2bf3cf26 100644
+--- a/docs/energy-output.rst
++++ b/docs/energy-output.rst
+@@ -27,7 +27,7 @@ The energy output computes the energy of the simulation. It is divided into mult
+     - Elastic kinetic energy
+         :math:`\int_{\Omega_e} \frac{1}{2} \rho v^2 \,\mathbf{dx}`, with :math:`\rho` the density and :math:`v` the velocity.
+     - Elastic energy
+-        :math:`\int_{\Omega_e} \frac{1}{2} \epsilon_{ij} \sigma_{kl} \,\mathbf{dx}`, with  :math:`\epsilon_{ij}` the strain tensor and :math:`\sigma_{ij}` the stress tensor. It reduces for isotropic materials to :math:`\int_{\Omega_e} \frac{1}{2\mu} (\sigma_{ij} \sigma_{ij} -\frac{\lambda}{3\lambda+2\mu} \sigma_{kk}^2)\,\mathbf{dx}`, with :math:`\lambda` and :math:`\mu` the Lame coefficients.
++        :math:`\int_{\Omega_e} \frac{1}{2} \epsilon_{ij} \sigma_{ij} \,\mathbf{dx}`, with  :math:`\epsilon_{ij}` the strain tensor and :math:`\sigma_{ij}` the stress tensor. It reduces for isotropic materials to :math:`\int_{\Omega_e} \frac{1}{4\mu} (\sigma_{ij} \sigma_{ij} -\frac{\lambda}{3\lambda+2\mu} \sigma_{kk}^2)\,\mathbf{dx}`, with :math:`\lambda` and :math:`\mu` the Lame coefficients, and :math:`\sigma_{kk}^2 = (\sigma_{11} + \sigma_{22} + \sigma_{33})^2` the squared trace.
+ - Earthquake source energy
+     - Total frictional work done by the stress change
+         :math:`W_\mathrm{total} = -\int_{0}^{t_f} \int_{\Sigma} \Delta\mathbf{\sigma}(t) \cdot \Delta\mathbf{\dot{u}}(t) \,\mathbf{dx}dt`, with :math:`\Sigma` the fault surface, :math:`\Delta\mathbf{\sigma}(t) = \mathbf{\sigma}(t) - \mathbf{\sigma}(0)` the shear traction change, and :math:`\Delta\mathbf{\dot{u}}(t)` the fault slip rate, and :math:`t_f` the end time of the simulation (see eq. 3 in Ma and Archuleta, 2006).
+-- 
+2.55.0
+

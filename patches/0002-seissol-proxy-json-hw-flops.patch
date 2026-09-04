@@ -1,0 +1,31 @@
+From ec910abcbfcbf57debbd26f8db69eeb9fddc9b07 Mon Sep 17 00:00:00 2001
+From: mohitt31 <mohitprajapati3112@gmail.com>
+Date: Fri, 21 Aug 2026 02:35:00 +0530
+Subject: [PATCH] fix: report hardware FLOP/cycle in the proxy's JSON output
+
+The JSON writer emitted output.nonZeroFlopPerCycle for both
+"gflopcycle-nz" and "gflopcycle-hw", so the hardware figure was a
+duplicate of the non-zero one. The plain-text writer above it uses
+nonZeroFlopPerCycle and hardwareFlopPerCycle respectively, so the JSON
+path just lost the distinction.
+Contains AI-generated content. (model: Opus 5)
+---
+ src/Proxy/Common.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/Proxy/Common.cpp b/src/Proxy/Common.cpp
+index 50bb5aa2..809b1449 100644
+--- a/src/Proxy/Common.cpp
++++ b/src/Proxy/Common.cpp
+@@ -138,7 +138,7 @@ void Aux::writeOutput(std::ostream& stream,
+     writeField("gflop-hw", output.actualHardwareGFlop);
+     writeField("gib", output.gib);
+     writeField("gflopcycle-nz", output.nonZeroFlopPerCycle);
+-    writeField("gflopcycle-hw", output.nonZeroFlopPerCycle);
++    writeField("gflopcycle-hw", output.hardwareFlopPerCycle);
+     writeField("gibcycle", output.bytesPerCycle);
+     writeField("gflops-nz", output.nonZeroGFlops);
+     writeField("gflops-hw", output.hardwareGFlops);
+-- 
+2.55.0
+

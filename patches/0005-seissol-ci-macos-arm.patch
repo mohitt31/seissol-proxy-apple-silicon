@@ -1,0 +1,124 @@
+From 58556f43c0d37a665f723c5c064df24a99f3ef4a Mon Sep 17 00:00:00 2001
+From: mohitt31 <mohitprajapati3112@gmail.com>
+Date: Fri, 21 Aug 2026 06:49:59 +0530
+Subject: [PATCH] ci: add a macOS/Apple Silicon proxy build
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There is currently no macOS or ARM job in CI — every runner is
+ubuntu-26.04 except the two GPU ones. #963 added macOS and M1/M2 support
+in 2023, but it has since regressed: on master, the proxy does not build
+on Apple Silicon at all.
+
+This adds a light job that builds only seissol-proxy-exe with
+HOST_ARCH=apple-m1 on a macos-14 runner (which is Apple Silicon) and runs
+the proxy briefly as a smoke test. It is marked continue-on-error so it
+reports without gating merges.
+
+It would have caught all three of the failures fixed in the accompanying
+patches: the PSpaMM by-element FMLA syntax the LLVM assembler rejects,
+the missing <sys/time.h> in Proxy/Tools.h, and the serial-vs-parallel
+HDF5 mismatch.
+
+Note the ordering: this job only goes green once the PSpaMM NEON fix is
+released, since it installs PSpaMM from its default branch.
+Contains AI-generated content. (model: Opus 5)
+---
+ .github/workflows/build-seissol-macos.yml | 84 +++++++++++++++++++++++
+ 1 file changed, 84 insertions(+)
+ create mode 100644 .github/workflows/build-seissol-macos.yml
+
+diff --git a/.github/workflows/build-seissol-macos.yml b/.github/workflows/build-seissol-macos.yml
+new file mode 100644
+index 00000000..1849ce8a
+--- /dev/null
++++ b/.github/workflows/build-seissol-macos.yml
+@@ -0,0 +1,84 @@
++# SPDX-FileCopyrightText: 2026 SeisSol Group
++#
++# SPDX-License-Identifier: BSD-3-Clause
++# SPDX-LicenseComments: Full text under /LICENSE and /LICENSES/
++#
++# SPDX-FileContributor: Author lists in /AUTHORS and /CITATION.cff
++
++name: build-seissol-macos
++on:
++  - push
++  - workflow_dispatch
++
++jobs:
++  seissol-macos-proxy-build:
++    name: seissol-macos-proxy-build
++    # macos-14 and newer are Apple Silicon, so this exercises the
++    # HOST_ARCH=apple-m1 path that build-overview.rst recommends for Macs.
++    runs-on: macos-14
++    continue-on-error: true
++    strategy:
++      fail-fast: false
++      matrix:
++        order:
++          - 4
++        precision:
++          - double
++
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v6
++        with:
++          submodules: recursive
++
++      - name: Install dependencies
++        run: |
++          brew install cmake eigen yaml-cpp libomp open-mpi
++          # SeisSol's CMake sets HDF5 and MPI unconditionally, and PUML needs
++          # the MPI-parallel HDF5 build, which conflicts with the serial one.
++          brew unlink hdf5 || true
++          brew install hdf5-mpi
++
++      - name: Install code generators
++        run: |
++          python3 -m venv "${HOME}/venv"
++          "${HOME}/venv/bin/pip" install --quiet numpy scipy setuptools
++          "${HOME}/venv/bin/pip" install --quiet "git+https://github.com/SeisSol/PSpaMM.git"
++
++      - name: Build easi
++        run: |
++          git clone --recursive --depth 1 https://github.com/SeisSol/easi.git "${HOME}/easi"
++          cmake -S "${HOME}/easi" -B "${HOME}/easi/build" \
++            -DCMAKE_BUILD_TYPE=Release \
++            -DASAGI=OFF -DIMPALAJIT=OFF -DLUA=OFF -DEASICUBE=OFF \
++            -DCMAKE_INSTALL_PREFIX="${HOME}/deps"
++          cmake --build "${HOME}/easi/build" -j "$(sysctl -n hw.ncpu)"
++          cmake --install "${HOME}/easi/build"
++
++      - name: Configure
++        run: |
++          PATH="${HOME}/venv/bin:${PATH}" cmake -B build \
++            -DCMAKE_BUILD_TYPE=Release \
++            -DHOST_ARCH=apple-m1 \
++            -DORDER=${{ matrix.order }} \
++            -DEQUATIONS=elastic \
++            -DPRECISION=${{ matrix.precision }} \
++            -DGRAPH_PARTITIONING_LIBS=none \
++            -DNETCDF=OFF \
++            -DASAGI=OFF \
++            -DNUMA_AWARE_PINNING=OFF \
++            -DCMAKE_PREFIX_PATH="${HOME}/deps;/opt/homebrew/opt/hdf5-mpi;/opt/homebrew" \
++            -DPython3_EXECUTABLE="${HOME}/venv/bin/python" \
++            -DOpenMP_ROOT=/opt/homebrew/opt/libomp
++
++      - name: Build proxy
++        run: |
++          PATH="${HOME}/venv/bin:${PATH}" cmake --build build \
++            --target seissol-proxy-exe -j "$(sysctl -n hw.ncpu)"
++
++      - name: Smoke test
++        run: |
++          BIN="build/proxyseissol-elastic-o${{ matrix.order }}-f64"
++          for kernel in all ader local neigh; do
++            OMP_NUM_THREADS=2 "${BIN}" 1000 2 "${kernel}"
++          done
+-- 
+2.55.0
+

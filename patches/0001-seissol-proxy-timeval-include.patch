@@ -1,0 +1,38 @@
+From 26f5d2cd25ab65ebb234c54a3e0d34edf04ed2cf Mon Sep 17 00:00:00 2001
+From: mohitt31 <mohitprajapati3112@gmail.com>
+Date: Fri, 21 Aug 2026 02:34:47 +0530
+Subject: [PATCH] fix: include <sys/time.h> for struct timeval in the proxy
+
+Proxy/Tools.h declares
+
+    auto sec(struct timeval start, struct timeval end) -> double;
+
+but only includes <ctime>. struct timeval comes from <sys/time.h>; glibc
+happens to pull it in transitively via <ctime>, so this builds on Linux,
+but on macOS it does not and Tools.cpp fails with
+
+    error: variable has incomplete type 'struct timeval'
+
+Runner.cpp already includes <sys/time.h> explicitly, which is why only
+Tools.cpp breaks. Include it in the header instead, so the header is
+self-contained for anyone declaring or calling sec().
+Contains AI-generated content. (model: Opus 5)
+---
+ src/Proxy/Tools.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/Proxy/Tools.h b/src/Proxy/Tools.h
+index cf190815..0dd8ffc0 100644
+--- a/src/Proxy/Tools.h
++++ b/src/Proxy/Tools.h
+@@ -10,6 +10,7 @@
+ #define SEISSOL_SRC_PROXY_TOOLS_H_
+ 
+ #include <ctime>
++#include <sys/time.h>
+ 
+ auto derive_cycles_from_time(double time) -> double;
+ 
+-- 
+2.55.0
+

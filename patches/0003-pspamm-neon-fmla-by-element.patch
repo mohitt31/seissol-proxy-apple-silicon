@@ -1,0 +1,72 @@
+From d6a11ea28849b4662b3766e6eb452aae1273a16b Mon Sep 17 00:00:00 2001
+From: mohitt31 <mohitprajapati3112@gmail.com>
+Date: Fri, 21 Aug 2026 02:34:41 +0530
+Subject: [PATCH] fix: emit ARM ARM by-element operand form for NEON FMLA/FMLS
+
+The NEON backend printed the by-element FMLA/FMLS multiplicand with the
+full arrangement specifier, e.g.
+
+    fmla v11.2d, v1.2d, v3.2d[0]
+
+The ARM ARM gives this instruction as
+
+    FMLA <Vd>.<T>, <Vn>.<T>, <Vm>.<Ts>[<index>]
+
+i.e. the third operand carries the element type, not the arrangement, so
+it has to be written "v3.d[0]". GNU as accepts the redundant form, which
+is why this has gone unnoticed, but the LLVM integrated assembler rejects
+it with "invalid operand for instruction". That makes every NEON kernel
+fail to assemble under clang, including the documented
+HOST_ARCH=apple-m1/m2/m3/m4 builds of SeisSol on macOS.
+
+Emit the element-type form instead. This is a pure syntax change; the
+encoded instruction is the same.
+
+Verified with tests/unit_test.py arm128:
+  - gcc 13.3 / GNU as 2.42 (aarch64): 630/630 before and after
+  - clang: does not assemble before; 630/630 after (with
+    -ffp-contract=off; with contraction enabled one single-precision
+    case differs by ~1e-6 relative, which is the C reference being
+    fused, not the generated kernel)
+Contains AI-generated content. (model: Opus 5)
+---
+ .../codegen/architectures/arm/inlineprinter.py   | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/pypspamm/codegen/architectures/arm/inlineprinter.py b/pypspamm/codegen/architectures/arm/inlineprinter.py
+index 6a83336..17f9aee 100644
+--- a/pypspamm/codegen/architectures/arm/inlineprinter.py
++++ b/pypspamm/codegen/architectures/arm/inlineprinter.py
+@@ -6,6 +6,20 @@ from pypspamm.codegen.precision import *
+ from pypspamm.codegen.visitor import Visitor
+ 
+ 
++def laneOperand(reg: str):
++    """Return the by-element operand form of a NEON vector register.
++
++    The vector-by-element FMLA/FMLS take an element type, not a full
++    arrangement specifier (ARM ARM: FMLA <Vd>.<T>, <Vn>.<T>, <Vm>.<Ts>[<index>]).
++    So the third operand has to be written as "v3.d[0]" rather than "v3.2d[0]".
++    GNU as tolerates the latter, but the LLVM integrated assembler rejects it.
++    """
++    if "." not in reg:
++        return reg
++    name, arrangement = reg.split(".")
++    return f"{name}.{arrangement[-1]}"
++
++
+ class InlinePrinter(Visitor):
+ 
+     show_comments = True
+@@ -49,7 +63,7 @@ class InlinePrinter(Visitor):
+ 
+         op = "s" if stmt.sub else "a"
+         if stmt.bcast is not None:
+-            s = f"fml{op} {a}, {m}, {b}[{stmt.bcast}]"
++            s = f"fml{op} {a}, {m}, {laneOperand(b)}[{stmt.bcast}]"
+         else:
+             s = f"fml{op} {a}, {m}, {b}"
+         self.addLine(s, stmt.comment)
+-- 
+2.55.0
+

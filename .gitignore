@@ -1,0 +1,12 @@
+# compiled microbenchmarks
+clock
+peak1
+peakflops
+stream
+p1_*
+pf_*
+*.o
+
+# working files, not part of the public write-up
+reengagement-draft.md
+pr-description-pspamm.md
