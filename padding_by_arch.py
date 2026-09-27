@@ -1,5 +1,6 @@
 import re, glob
-S="/tmp/claude-501/-Users-mohit/88a9b3f0-695b-4f6f-b89f-9254d59d5181/scratchpad"
+import os, sys
+S = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()  # directory holding the gen-* outputs
 ARCHS=["apple-m4","hsw","skx","sve512"]
 WIDTH={"apple-m4":2,"hsw":4,"skx":8,"sve512":8}
 WANT=["volume","derivative","localFlux","localFluxNodal","neighboringFlux","nodalFlux"]

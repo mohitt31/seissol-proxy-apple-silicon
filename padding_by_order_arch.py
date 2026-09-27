@@ -1,5 +1,6 @@
 import re, glob
-S="/tmp/claude-501/-Users-mohit/88a9b3f0-695b-4f6f-b89f-9254d59d5181/scratchpad"
+import os, sys
+S = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()  # directory holding the gen-* outputs
 def nums(s): return [int(x) for x in re.findall(r'\d+', s)]
 def parse(path):
     txt=open(path).read(); out={}
